@@ -6,7 +6,7 @@ dependencies:
   - pip
   - pip:
       - ultralytics>=8.4
-      - boxmot==10.0.42
+      - boxmot==25.0.0
       - opencv-python>=4.8
       - numpy
       - pyyaml

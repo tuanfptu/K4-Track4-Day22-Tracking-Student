@@ -2,7 +2,7 @@
 # TrackEval cài riêng bằng git clone (xem HUONG_DAN.md, bước C).
 
 ultralytics>=8.4
-boxmot==10.0.42
+boxmot==25.0.0
 opencv-python>=4.8
 numpy
 pyyaml

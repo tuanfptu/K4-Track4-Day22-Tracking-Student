@@ -13,6 +13,17 @@ git clone https://github.com/JonathonLuiten/TrackEval.git
 pip install -e TrackEval/
 ```
 
+Nếu chạy trên GPU NVIDIA, cài bản PyTorch CUDA sau khi tạo môi trường. Bài nộp
+này đã kiểm tra với GTX 1660 Ti, PyTorch 2.13.0 + CUDA 12.6:
+
+```bash
+pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu126
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+Khi chạy tracking, thêm `--device cuda:0`. Script dừng ngay nếu PyTorch không
+nhận CUDA; như vậy không thể vô tình tạo kết quả bằng CPU khi yêu cầu GPU.
+
 2. Tải ảnh năm video: [data_lab21.zip](https://drive.google.com/file/d/1UeVPQd6j5pSzxoJDcKJrerT9SL3vJLDt/view?usp=sharing). Giải nén, rồi gán đường dẫn thư mục chứa `video_1` … `video_5`:
 
 ```bash

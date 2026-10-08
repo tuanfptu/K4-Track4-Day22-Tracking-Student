@@ -26,9 +26,10 @@ from typing import Iterator, Tuple
 
 import cv2
 import numpy as np
+import torch
 from ultralytics import YOLO
 
-from boxmot.tracker_zoo import create_tracker, get_tracker_config
+from boxmot import BotSort, ByteTrack, DeepOcSort, OcSort, StrongSort
 
 # ---------------------------------------------------------------------------
 # Các biến CỐ ĐỊNH cho cả lớp — KHÔNG sửa khi làm bài chính. Nếu muốn thử
@@ -41,6 +42,30 @@ REID_WEIGHTS = Path("osnet_x0_25_msmt17.pt")  # tự tải về lần chạy đ�
 
 TRACKER_CHOICES = ["bytetrack", "ocsort", "botsort", "strongsort", "deepocsort"]
 USES_APPEARANCE = {"botsort", "strongsort", "deepocsort"}
+TRACKER_CLASSES = {
+    "bytetrack": ByteTrack,
+    "ocsort": OcSort,
+    "botsort": BotSort,
+    "strongsort": StrongSort,
+    "deepocsort": DeepOcSort,
+}
+
+
+def make_tracker(name: str, device: str):
+    """Tạo tracker BoxMOT với trọng số Re-ID cố định khi cần.
+
+    Args:
+        name: Tên tracker đã chọn.
+        device: Thiết bị chạy Re-ID.
+
+    Returns:
+        Tracker tương ứng từ BoxMOT.
+
+    Raises:
+        KeyError: Khi tên tracker không hợp lệ.
+    """
+    kwargs = {"reid_weights": REID_WEIGHTS, "device": device, "half": False} if name in USES_APPEARANCE else {}
+    return TRACKER_CLASSES[name](**kwargs)
 
 
 def iter_frames(source: Path) -> Iterator[Tuple[int, np.ndarray]]:
@@ -88,7 +113,7 @@ def color_for_id(track_id: int) -> Tuple[int, int, int]:
     return tuple(int(c) for c in rng.integers(64, 255, size=3))
 
 
-def detect(detector: YOLO, frame: np.ndarray, conf: float, iou: float) -> np.ndarray:
+def detect(detector: YOLO, frame: np.ndarray, conf: float, iou: float, device: str) -> np.ndarray:
     """Chạy detector và trả về hộp người trên một frame.
 
     Args:
@@ -96,6 +121,7 @@ def detect(detector: YOLO, frame: np.ndarray, conf: float, iou: float) -> np.nda
         frame: Ảnh BGR.
         conf: Ngưỡng confidence của detector.
         iou: Ngưỡng IoU cho NMS của detector.
+        device: Thiết bị thực thi detector.
 
     Returns:
         Mảng ``(N, 6)`` với mỗi hàng là ``[x1, y1, x2, y2, conf, cls]``.
@@ -107,6 +133,7 @@ def detect(detector: YOLO, frame: np.ndarray, conf: float, iou: float) -> np.nda
         iou=iou,
         imgsz=IMG_SIZE,
         classes=[PERSON_CLASS_ID],
+        device=device,
         verbose=False,
     )[0]
     if results.boxes is None or len(results.boxes) == 0:
@@ -126,6 +153,8 @@ def run(args: argparse.Namespace) -> None:
             và ``max_frames``.
     """
     source = Path(args.source)
+    if args.device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError("PyTorch chưa nhận GPU CUDA; hãy cài bản CUDA trước khi chạy bài nộp.")
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     mot_txt = out_dir / f"{args.seq_name}.txt"
@@ -134,14 +163,7 @@ def run(args: argparse.Namespace) -> None:
     if args.tracker in USES_APPEARANCE:
         print(f"              tracker này dùng Re-ID: {REID_WEIGHTS.name} (tự tải nếu chưa có)")
     detector = YOLO(DETECTOR_WEIGHTS)
-    tracker = create_tracker(
-        tracker_type=args.tracker,
-        tracker_config=get_tracker_config(args.tracker),
-        reid_weights=REID_WEIGHTS,
-        device=args.device,
-        half=False,
-        per_class=False,
-    )
+    tracker = make_tracker(args.tracker, args.device)
 
     writer = None
     rows = []
@@ -153,7 +175,7 @@ def run(args: argparse.Namespace) -> None:
             continue
         n_frames += 1
 
-        dets = detect(detector, frame, conf=args.conf, iou=args.iou)
+        dets = detect(detector, frame, conf=args.conf, iou=args.iou, device=args.device)
         tracks = tracker.update(dets, frame)
 
         for track in tracks:

@@ -5,3 +5,9 @@ TrackEval/
 __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
+.venv/
+.uv-cache/
+Ultralytics/
+*.part
+.mpl-config/
+.yolo-config/

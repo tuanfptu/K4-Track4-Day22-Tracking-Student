@@ -48,15 +48,17 @@ def _load_eval_config(lab_data_root: Path) -> dict:
         Dict có khóa ``benchmark`` và có thể có ``split``.
 
     Raises:
-        FileNotFoundError: Khi thiếu ``video_1/eval_config.json``.
+        FileNotFoundError: Khi thiếu cả ``eval_config.json`` lẫn ``seqinfo.ini``.
     """
     config_path = lab_data_root / PRACTICE_VIDEO / "eval_config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(
-            f"Không thấy {config_path}. Dùng đúng gói lab_data giảng viên phát "
-            "(file này đi kèm nhãn của video luyện)."
-        )
-    return json.loads(config_path.read_text())
+    if config_path.exists():
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    seqinfo = lab_data_root / PRACTICE_VIDEO / "seqinfo.ini"
+    if not seqinfo.exists():
+        raise FileNotFoundError(f"Không thấy {config_path} hoặc {seqinfo}")
+    # Gói bài tập hiện hành có seqinfo.ini nhưng không có eval_config.json.
+    # Benchmark riêng tránh lẫn với dữ liệu TrackEval khác trên cùng máy.
+    return {"benchmark": "LAB21", "split": "train"}
 
 
 def stage(trackeval_root: Path, lab_data_root: Path, submission: Path, run_name: str, benchmark: str) -> None:
@@ -105,6 +107,7 @@ def run_trackeval(trackeval_root: Path, run_name: str, benchmark: str, split: st
     """
     cmd = [
         sys.executable,
+        str(Path(__file__).with_name("trackeval_compat.py")),
         str(trackeval_root / "scripts" / "run_mot_challenge.py"),
         "--GT_FOLDER", str(trackeval_root / "data" / "gt" / "mot_challenge"),
         "--TRACKERS_FOLDER", str(trackeval_root / "data" / "trackers" / "mot_challenge"),
